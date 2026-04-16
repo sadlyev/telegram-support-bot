@@ -1,19 +1,25 @@
-require('dotenv').config();
-const app = require('./src/app');
-const { bot } = require('./src/bot');
+import express from "express";
+import { Telegraf } from "telegraf";
 
+const app = express();
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+app.use(express.json());
+
+bot.start((ctx) => ctx.reply("Bot working"));
+
+app.post("/webhook", (req, res) => {
+  bot.handleUpdate(req.body, res);
+});
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(PORT, async () => {
+  console.log(`Server running on ${PORT}`);
 
-  // Use Polling for Railway - it's simpler than setting up Webhooks
-  bot.launch()
-    .then(() => console.log('🤖 Bot is polling for messages...'))
-    .catch((err) => console.error('Bot launch error:', err));
+  await bot.telegram.setWebhook(
+    "https://telegram-support-bot-k95h.onrender.com/webhook"
+  );
+
+  console.log("Webhook set");
 });
-
-// Enable graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
