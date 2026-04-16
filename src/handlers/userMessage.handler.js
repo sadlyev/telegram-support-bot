@@ -3,38 +3,37 @@ const userService = require('../services/user.service');
 const telegramService = require('../services/telegram.service');
 
 module.exports = async (ctx) => {
-  // 1. Safety check for text
+  // 1. Matn borligini tekshirish
   if (!ctx.message || !ctx.message.text) return;
 
-  // 2. Ignore if Admin is typing (Admins use /reply)
-  // Use Number() to ensure the comparison works
+  // 2. Agar Admin yozayotgan bo'lsa (Adminlar /reply ishlatadi)
   if (ctx.from.id == Number(process.env.ADMIN_ID)) {
-    return ctx.reply("Admin, use /reply [UserID] [Message] to respond.");
+    return ctx.reply("Admin, javob berish uchun /reply [UserID] [Xabar] formatidan foydalaning.");
   }
 
-  // 3. Check if user exists
+  // 3. Foydalanuvchi ro'yxatdan o'tganini tekshirish
   const user = await userService.findByTelegramId(ctx.from.id);
   if (!user || !user.is_registered) {
-    return ctx.reply("Please use /start to register first.");
+    return ctx.reply("Iltimos, avval /start buyrug'i orqali ro'yxatdan o'ting.");
   }
 
   try {
-    // 4. Log to Database
+    // 4. Ma'lumotlar bazasiga saqlash
     const ticket = await ticketService.getOrCreateTicket(ctx.from.id);
     await ticketService.logMessage(ticket.id, ctx.from.id, ctx.message.text);
 
-    // 5. Notify Admin
+    // 5. Adminga xabar yuborish
     await telegramService.notifyAdmin(
-      `📩 *New Support Request*\n` +
-      `User: ${user.first_name}\n` +
-      `Phone: ${user.phone_number}\n` +
+      `📩 *Yangi murojaat*\n` +
+      `Ism: ${user.first_name}\n` +
+      `Tel: ${user.phone_number}\n` +
       `ID: \`${ctx.from.id}\`\n\n` +
-      `*Message:* ${ctx.message.text}`
+      `*Xabar:* ${ctx.message.text}`
     );
 
-    await ctx.reply("Your message was sent to support. Please wait for a reply!");
+    await ctx.reply("Sizning xabaringiz yuborildi. Tez orada admin javob beradi!");
   } catch (error) {
-    console.error("Error in userMessage handler:", error);
-    await ctx.reply("Sorry, something went wrong while sending your message.");
+    console.error("UserMessage handler xatosi:", error);
+    await ctx.reply("Uzr, xabarni yuborishda xatolik yuz berdi.");
   }
 };

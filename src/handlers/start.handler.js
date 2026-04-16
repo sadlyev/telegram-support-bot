@@ -2,7 +2,7 @@ const keyboards = require('../utils/keyboards');
 
 module.exports = async (ctx) => {
   await ctx.reply(
-    `Hello ${ctx.from.first_name}! Please share your number to start support.`,
+    `Assalomu alaykum, ${ctx.from.first_name}! Qo‘llab-quvvatlash xizmatidan foydalanish uchun iltimos, telefon raqamingizni yuboring.`,
     keyboards.contactRequest()
   );
 };
