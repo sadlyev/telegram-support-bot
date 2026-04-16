@@ -1,10 +1,6 @@
-import express from "express";
-import { Telegraf } from "telegraf";
-
-const app = express();
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-app.use(express.json());
+require('dotenv').config();
+const app = require('./src/app');
+const { bot } = require('./src/bot');
 
 bot.start((ctx) => ctx.reply("Bot working"));
 
