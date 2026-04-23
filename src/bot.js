@@ -10,39 +10,41 @@ const ticketService = require('./services/ticket.service');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const CHANNEL = process.env.CHANNEL_ID;
 
-// 1. Initial Start
 bot.start(startHandler);
-
-// 2. Handle the Phone Number share event
 bot.on('contact', contactHandler);
-
-// 3. Admin Command: /reply [id] [text]
 bot.command('reply', adminOnly, adminReplyHandler);
 
 // 4. Admin "Reply to message" detection
-// This triggers when you swipe-right and reply to a user's message notification
 bot.on('text', adminOnly, async (ctx, next) => {
     if (ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo.id) {
         const replyToText = ctx.message.reply_to_message.text || "";
         
-        // Extract ID from the notification text (looks for ID: 12345)
         const idMatch = replyToText.match(/ID:\s*`?(\d+)`?/i);
+        // Extract the user's question from the notification text
+        const questionMatch = replyToText.match(/\*Xabar:\* ([\s\S]*?)\n\nID:/i);
         
         if (idMatch) {
             const userId = idMatch[1];
-            const adminMessage = ctx.message.text;
+            const userQuestion = questionMatch ? questionMatch[1].trim() : "Savol topilmadi";
+            const adminAnswer = ctx.message.text;
 
             try {
                 const ticket = await ticketService.getOrCreateTicket(userId);
                 
                 return await ctx.reply(
-                    `📝 **Tasdiqlash:**\n\n**Kimga:** \`${userId}\`\n**Xabar:** ${adminMessage}\n\nUshbu javobni tasdiqlaysizmi?`,
+                    `📝 **Tasdiqlash paneli:**\n\n` +
+                    `👤 **User ID:** \`${userId}\`\n` +
+                    `❓ **Savol:** ${userQuestion}\n` +
+                    `💡 **Javobingiz:** ${adminAnswer}`,
                     {
                         parse_mode: 'Markdown',
                         reply_markup: {
                             inline_keyboard: [
                                 [
-                                    { text: "✅ Approve & Send", callback_data: `approve_${ticket.id}_${userId}` },
+                                    { text: "👤 Send to User Only", callback_data: `send_user_${ticket.id}_${userId}` },
+                                    { text: "📢 Post to Channel", callback_data: `post_all_${ticket.id}_${userId}` }
+                                ],
+                                [
                                     { text: "❌ Disapprove", callback_data: `disapprove_${ticket.id}` }
                                 ]
                             ]
@@ -57,57 +59,60 @@ bot.on('text', adminOnly, async (ctx, next) => {
     return next();
 });
 
-// --- ACTION HANDLERS FOR BUTTONS ---
+const getQA = (text) => {
+    const question = text.split('Savol:** ')[1].split('\n💡')[0];
+    const answer = text.split('Javobingiz:** ')[1].split('\n\n')[0];
+    return { question, answer };
+};
 
-bot.action(/^approve_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
-    const ticketId = ctx.match[1];
-    const userId = ctx.match[2];
-    
+bot.action(/^send_user_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
+    const [_, ticketId, userId] = ctx.match;
+    const { answer } = getQA(ctx.callbackQuery.message.text);
+
     try {
-        // 1. Extract message text from the preview
-        const fullText = ctx.callbackQuery.message.text;
-        const messagePart = fullText.split('Xabar: ')[1];
-        if (!messagePart) throw new Error("Xabar matni topilmadi");
-        const messageText = messagePart.split('\n\n')[0];
-
-        // 2. Send to Channel (Usually succeeds)
-        await ctx.telegram.sendMessage(CHANNEL, `📢 *Yangi javob*\n\n${messageText}`, { parse_mode: 'Markdown' });
-        
-        // 3. Send to User (Might fail if user blocked bot)
-        let userNotified = true;
-        try {
-            await ctx.telegram.sendMessage(userId, `🎧 *Admin javobi:* ${messageText}`, { parse_mode: 'Markdown' });
-        } catch (userErr) {
-            console.error(`User ${userId} message failed:`, userErr.message);
-            userNotified = false;
-        }
-
-        // 4. Update Database Status
-        if (ticketService.updateStatus) {
-            await ticketService.updateStatus(ticketId, 'posted');
-        }
-
-        // 5. Final UI Update
-        if (userNotified) {
-            await ctx.editMessageText(`✅ Muvaffaqiyatli: Kanalga joylandi va foydalanuvchiga yuborildi.`);
-        } else {
-            await ctx.editMessageText(`⚠️ Kanalga yuborildi, lekin foydalanuvchi botni bloklagan (ID: ${userId}).`);
-        }
-        
-        await ctx.answerCbQuery("Bajarildi!");
-
+        await ctx.telegram.sendMessage(userId, `🎧 *Admin javobi:* ${answer}`, { parse_mode: 'Markdown' });
+        await ctx.editMessageText(`✅ Faqat foydalanuvchiga yuborildi.`);
+        await ctx.answerCbQuery("Userga yuborildi");
     } catch (err) {
-        console.error("Approve handler error:", err);
-        await ctx.answerCbQuery("Xatolik: " + err.message);
+        await ctx.answerCbQuery("Foydalanuvchi botni bloklagan!");
     }
 });
 
+// 2. Post to Channel (Includes Question and Answer)
+bot.action(/^post_all_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
+    const [_, ticketId, userId] = ctx.match;
+    const { question, answer } = getQA(ctx.callbackQuery.message.text);
+
+    try {
+        // Post to Channel
+        await ctx.telegram.sendMessage(
+            CHANNEL, 
+            `❓ *Savol:* ${question}\n\n💡 *Javob:* ${answer}`, 
+            { parse_mode: 'Markdown' }
+        );
+
+        // Send to User
+        try {
+            await ctx.telegram.sendMessage(userId, `🎧 *Admin javobi:* ${answer}`, { parse_mode: 'Markdown' });
+            await ctx.editMessageText(`✅ Kanalga joylandi va foydalanuvchiga yuborildi.`);
+        } catch (e) {
+            await ctx.editMessageText(`⚠️ Kanalga joylandi, lekin foydalanuvchi botni bloklagan.`);
+        }
+
+        if (ticketService.updateStatus) await ticketService.updateStatus(ticketId, 'posted');
+        await ctx.answerCbQuery("Kanalga post qilindi!");
+    } catch (err) {
+        console.error(err);
+        await ctx.answerCbQuery("Kanalga yuborishda xatolik!");
+    }
+});
+
+// 3. Disapprove
 bot.action(/^disapprove_(\d+)$/, adminOnly, async (ctx) => {
-    await ctx.editMessageText(`❌ Xabar bekor qilindi.`);
+    await ctx.editMessageText(`❌ Bekor qilindi.`);
     await ctx.answerCbQuery("Bekor qilindi");
 });
 
-// 5. Catch-all for user messages
 bot.on('text', userMessageHandler);
 
 module.exports = { bot };

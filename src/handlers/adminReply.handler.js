@@ -10,23 +10,26 @@ module.exports = async (ctx) => {
   }
 
   try {
-    // 1. Get the ticket and save the admin's reply text to the database first
-    // This is necessary because button callback_data has a 64-character limit
     const ticket = await ticketService.getOrCreateTicket(targetId);
     
-    // We log the message to the DB so the callback handler can retrieve it later
+    // Log the admin's message to the DB
     await ticketService.logMessage(ticket.id, ctx.from.id, message);
 
-    // 2. Reply to the admin with confirmation buttons
+    // we use a placeholder for "Savol" since /reply is a manual command
     await ctx.reply(
-      `📝 **Xabar tayyorlandi:**\n\n**Kimga:** \`${targetId}\`\n**Xabar:** ${message}\n\nUshbu javobni tasdiqlaysizmi?`,
+      `📝 **Tasdiqlash paneli:**\n\n` +
+      `👤 **User ID:** \`${targetId}\`\n` +
+      `❓ **Savol:** (Manual Reply via command)\n` + 
+      `💡 **Javobingiz:** ${message}`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
             [
-              // We pass the ticket.id so the bot knows which message to send
-              { text: "✅ Approve & Send", callback_data: `approve_${ticket.id}_${targetId}` },
+              { text: "👤 Send to User Only", callback_data: `send_user_${ticket.id}_${targetId}` },
+              { text: "📢 Post to Channel", callback_data: `post_all_${ticket.id}_${targetId}` }
+            ],
+            [
               { text: "❌ Disapprove", callback_data: `disapprove_${ticket.id}` }
             ]
           ]
