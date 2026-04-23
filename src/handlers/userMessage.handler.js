@@ -19,7 +19,7 @@ module.exports = async (ctx) => {
     const ticket = await ticketService.getOrCreateTicket(ctx.from.id);
     await ticketService.logMessage(ticket.id, ctx.from.id, ctx.message.text);
 
-    // CRITICAL: The bot.js regex depends on the word "Savol:" and "ID:"
+    // CRITICAL: Format must match the Regex in bot.js
     await telegramService.notifyAdmin(
       `📩 *Yangi murojaat*\n` +
       `👤 *Ism:* ${user.first_name}\n` +
@@ -28,9 +28,9 @@ module.exports = async (ctx) => {
       `🆔 ID: ${ctx.from.id}` 
     );
 
-    await ctx.reply("Sizning xabaringiz yuborildi. Tez orada admin javob beradi!");
+    await ctx.reply("Xabaringiz yuborildi. Admin tez orada javob beradi!");
   } catch (error) {
     console.error("UserMessage handler xatosi:", error);
-    await ctx.reply("Uzr, xabarni yuborishda xatolik yuz berdi.");
+    await ctx.reply("Xabarni yuborishda xatolik yuz berdi.");
   }
 };
