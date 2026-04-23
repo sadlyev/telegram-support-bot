@@ -5,8 +5,14 @@ const telegramService = require('../services/telegram.service');
 module.exports = async (ctx) => {
   if (!ctx.message || !ctx.message.text) return;
 
-  // Ignore if Admin is replying
-  if (ctx.from.id == Number(process.env.ADMIN_ID) && ctx.message.reply_to_message) return;
+  const adminIdEnv = process.env.ADMIN_ID || "";
+  const adminIds = adminIdEnv.split(',').map(id => id.trim());
+
+  // Prevent admins from triggering user flow
+  if (adminIds.includes(ctx.from.id.toString())) {
+    if (ctx.message.reply_to_message) return;
+    return ctx.reply("Admin, foydalanuvchiga javob berish uchun swipe-reply (o'ngga surish) dan foydalaning.");
+  }
 
   const user = await userService.findByTelegramId(ctx.from.id);
   if (!user || !user.is_registered) {
@@ -17,7 +23,6 @@ module.exports = async (ctx) => {
     const ticket = await ticketService.getOrCreateTicket(ctx.from.id);
     await ticketService.logMessage(ticket.id, ctx.from.id, ctx.message.text);
 
-    // Notification format for the Admin
     await telegramService.notifyAdmin(
       `📩 *Yangi murojaat*\n` +
       `👤 *Ism:* ${user.first_name}\n\n` +
@@ -27,7 +32,7 @@ module.exports = async (ctx) => {
 
     await ctx.reply("Xabaringiz yuborildi. Admin tez orada javob beradi!");
   } catch (error) {
-    console.error("UserMessage Error:", error);
-    await ctx.reply("Xabarni yuborishda xatolik yuz berdi.");
+    console.error(error);
+    await ctx.reply("Xatolik yuz berdi.");
   }
 };
