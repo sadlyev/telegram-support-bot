@@ -13,9 +13,9 @@ module.exports = async (ctx) => {
 
     await ctx.reply(
       `📝 **Tasdiqlash paneli:**\n\n` +
-      `👤 **Foydalanuvchi:** \`${targetId}\`\n` +
+      `👤 **User ID:** \`${targetId}\`\n` +
       `❓ **Savol:** (Manual Reply)\n` + 
-      `💡 **Javob:** ${message}`,
+      `💡 **Javobingiz:** ${message}`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -24,9 +24,7 @@ module.exports = async (ctx) => {
               { text: "👤 User Only", callback_data: `send_user_${ticket.id}_${targetId}` },
               { text: "📢 Post to Channel", callback_data: `post_all_${ticket.id}_${targetId}` }
             ],
-            [
-              { text: "❌ Disapprove", callback_data: `disapprove_${ticket.id}` }
-            ]
+            [ { text: "❌ Disapprove", callback_data: `disapprove_${ticket.id}` } ]
           ]
         }
       }

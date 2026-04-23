@@ -5,10 +5,7 @@ const telegramService = require('../services/telegram.service');
 module.exports = async (ctx) => {
   if (!ctx.message || !ctx.message.text) return;
 
-  // Ignore if Admin is replying (handled by bot.js)
-  if (ctx.from.id == Number(process.env.ADMIN_ID) && ctx.message.reply_to_message) {
-    return; 
-  }
+  if (ctx.from.id == Number(process.env.ADMIN_ID) && ctx.message.reply_to_message) return;
 
   const user = await userService.findByTelegramId(ctx.from.id);
   if (!user || !user.is_registered) {
@@ -19,7 +16,7 @@ module.exports = async (ctx) => {
     const ticket = await ticketService.getOrCreateTicket(ctx.from.id);
     await ticketService.logMessage(ticket.id, ctx.from.id, ctx.message.text);
 
-    // CRITICAL: Format must match the Regex in bot.js
+    // Format used by bot.js regex
     await telegramService.notifyAdmin(
       `📩 *Yangi murojaat*\n` +
       `👤 *Ism:* ${user.first_name}\n` +
@@ -28,9 +25,9 @@ module.exports = async (ctx) => {
       `🆔 ID: ${ctx.from.id}` 
     );
 
-    await ctx.reply("Xabaringiz yuborildi. Admin tez orada javob beradi!");
+    await ctx.reply("Sizning xabaringiz yuborildi. Tez orada admin javob beradi!");
   } catch (error) {
-    console.error("UserMessage handler xatosi:", error);
+    console.error("UserMessage handler error:", error);
     await ctx.reply("Xabarni yuborishda xatolik yuz berdi.");
   }
 };
