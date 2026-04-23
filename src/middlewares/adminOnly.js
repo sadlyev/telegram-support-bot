@@ -1,12 +1,13 @@
 module.exports = async (ctx, next) => {
-  const adminId = process.env.ADMIN_ID;
+  const adminIdEnv = process.env.ADMIN_ID || "";
+  
+  // .map(id => id.trim()) is the key fix here!
+  const adminIds = adminIdEnv.split(',').map(id => id.trim());
 
-  // Use == to allow string-to-number comparison
-  if (ctx.from.id == adminId) {
+  if (adminIds.includes(ctx.from.id.toString())) {
     return next();
   }
 
-  // This log will tell you exactly what is wrong in the Render "Logs" tab
-  console.log(`[AUTH] Denied! Your ID: ${ctx.from.id} | Allowed ID: ${adminId}`);
+  console.log(`[AUTH] Denied access to: ${ctx.from.id}. Allowed: ${adminIds}`);
   return ctx.reply("Access denied. Admins only.");
 };
