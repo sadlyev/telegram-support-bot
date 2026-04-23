@@ -19,9 +19,10 @@ bot.on('text', adminOnly, async (ctx, next) => {
     if (ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo.id) {
         const replyToText = ctx.message.reply_to_message.text || "";
         
-        const idMatch = replyToText.match(/ID:\s*`?(\d+)`?/i);
-        // Extract the user's question from the notification text
-        const questionMatch = replyToText.match(/\*Xabar:\* ([\s\S]*?)\n\nID:/i);
+        // Match User ID
+        const idMatch = replyToText.match(/ID:\s*(\d+)/i);
+        // Match Question (Text between "Savol:" and "ID:")
+        const questionMatch = replyToText.match(/\*Savol:\*\s*([\s\S]*?)\n\n/i);
         
         if (idMatch) {
             const userId = idMatch[1];
@@ -59,10 +60,15 @@ bot.on('text', adminOnly, async (ctx, next) => {
     return next();
 });
 
+// Helper to extract data from the confirmation panel text
 const getQA = (text) => {
-    const question = text.split('Savol:** ')[1].split('\n💡')[0];
-    const answer = text.split('Javobingiz:** ')[1].split('\n\n')[0];
-    return { question, answer };
+    try {
+        const question = text.split('Savol:** ')[1].split('\n💡')[0];
+        const answer = text.split('Javobingiz:** ')[1];
+        return { question: question.trim(), answer: answer.trim() };
+    } catch (e) {
+        return { question: "Savol topilmadi", answer: "Javob topilmadi" };
+    }
 };
 
 bot.action(/^send_user_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
@@ -78,36 +84,34 @@ bot.action(/^send_user_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
     }
 });
 
-// 2. Post to Channel (Includes Question and Answer)
 bot.action(/^post_all_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
     const [_, ticketId, userId] = ctx.match;
     const { question, answer } = getQA(ctx.callbackQuery.message.text);
 
     try {
-        // Post to Channel
+        // 1. Post to Channel
         await ctx.telegram.sendMessage(
             CHANNEL, 
             `❓ *Savol:* ${question}\n\n💡 *Javob:* ${answer}`, 
             { parse_mode: 'Markdown' }
         );
 
-        // Send to User
+        // 2. Send to User
         try {
             await ctx.telegram.sendMessage(userId, `🎧 *Admin javobi:* ${answer}`, { parse_mode: 'Markdown' });
             await ctx.editMessageText(`✅ Kanalga joylandi va foydalanuvchiga yuborildi.`);
         } catch (e) {
-            await ctx.editMessageText(`⚠️ Kanalga joylandi, lekin foydalanuvchi botni bloklagan.`);
+            await ctx.editMessageText(`⚠️ Kanalga joylandi, lekin user botni bloklagan.`);
         }
 
         if (ticketService.updateStatus) await ticketService.updateStatus(ticketId, 'posted');
-        await ctx.answerCbQuery("Kanalga post qilindi!");
+        await ctx.answerCbQuery("Bajarildi!");
     } catch (err) {
         console.error(err);
-        await ctx.answerCbQuery("Kanalga yuborishda xatolik!");
+        await ctx.answerCbQuery("Xatolik yuz berdi!");
     }
 });
 
-// 3. Disapprove
 bot.action(/^disapprove_(\d+)$/, adminOnly, async (ctx) => {
     await ctx.editMessageText(`❌ Bekor qilindi.`);
     await ctx.answerCbQuery("Bekor qilindi");
