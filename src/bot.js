@@ -18,6 +18,7 @@ bot.command('reply', adminOnly, adminReplyHandler);
 
 // 3. Helper: Extract Q&A from Panel
 const getQA = (text) => {
+    if (!text) return { question: "...", answer: "..." };
     const qMatch = text.match(/❓ Savol:\s*([\s\S]*?)\n💡/i);
     const aMatch = text.match(/💡 Javobingiz:\s*([\s\S]*?)$/i);
     return {
@@ -27,43 +28,45 @@ const getQA = (text) => {
 };
 
 // 4. Admin Swipe-Reply Detection
-// Note: adminOnly is ONLY triggered here if it's a reply to the bot
+// This structure prevents the "undefined (reading 'text')" crash
 bot.on('text', async (ctx, next) => {
     const isBotReply = ctx.message.reply_to_message && 
                        ctx.message.reply_to_message.from.id === ctx.botInfo.id;
 
-    if (isBotReply) {
-        // Run admin check ONLY for replies
-        return adminOnly(ctx, next);
+    // If it's NOT a reply to the bot, skip this handler entirely
+    if (!isBotReply) {
+        return next();
     }
-    // If not a reply, move to userMessageHandler
-    return next();
-}, async (ctx) => {
-    const replyToText = ctx.message.reply_to_message.text || "";
-    const idMatch = replyToText.match(/ID:\s*(\d+)/i);
-    const qMatch = replyToText.match(/❓ Savol:\s*([\s\S]*?)\n\n🆔/i);
 
-    if (idMatch) {
-        const userId = idMatch[1];
-        const userQuestion = qMatch ? qMatch[1].trim() : "Savol topilmadi";
-        const ticket = await ticketService.getOrCreateTicket(userId);
-        
-        return await ctx.reply(
-            `📝 **Tasdiqlash paneli:**\n\n👤 **User ID:** \`${userId}\`\n❓ **Savol:** ${userQuestion}\n💡 **Javobingiz:** ${ctx.message.text}`,
-            {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "👤 User Only", callback_data: `send_user_${ticket.id}_${userId}` },
-                            { text: "📢 Post to Channel", callback_data: `post_all_${ticket.id}_${userId}` }
-                        ],
-                        [{ text: "❌ Disapprove", callback_data: `disapprove` }]
-                    ]
+    // If it IS a reply, run the admin check
+    return adminOnly(ctx, async () => {
+        const replyToText = ctx.message.reply_to_message.text || "";
+        const idMatch = replyToText.match(/ID:\s*(\d+)/i);
+        const qMatch = replyToText.match(/❓ Savol:\s*([\s\S]*?)\n\n🆔/i);
+
+        if (idMatch) {
+            const userId = idMatch[1];
+            const userQuestion = qMatch ? qMatch[1].trim() : "Savol topilmadi";
+            const ticket = await ticketService.getOrCreateTicket(userId);
+            
+            return await ctx.reply(
+                `📝 **Tasdiqlash paneli:**\n\n👤 **User ID:** \`${userId}\`\n❓ **Savol:** ${userQuestion}\n💡 **Javobingiz:** ${ctx.message.text}`,
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: "👤 User Only", callback_data: `send_user_${ticket.id}_${userId}` },
+                                { text: "📢 Post to Channel", callback_data: `post_all_${ticket.id}_${userId}` }
+                            ],
+                            [{ text: "❌ Disapprove", callback_data: `disapprove` }]
+                        ]
+                    }
                 }
-            }
-        );
-    }
+            );
+        }
+        return next();
+    });
 });
 
 // --- ACTION HANDLERS ---
@@ -89,7 +92,7 @@ bot.action(/^post_all_(\d+)_(\d+)$/, adminOnly, async (ctx) => {
 
 bot.action('disapprove', adminOnly, (ctx) => ctx.editMessageText("❌ Bekor qilindi."));
 
-// 5. Catch-all for regular Users (NO adminOnly here)
+// 5. Catch-all for regular Users
 bot.on('text', userMessageHandler);
 
 module.exports = { bot };
