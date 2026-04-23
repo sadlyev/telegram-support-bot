@@ -3,37 +3,35 @@ const userService = require('../services/user.service');
 const telegramService = require('../services/telegram.service');
 
 module.exports = async (ctx) => {
-  // 1. Matn borligini tekshirish
   if (!ctx.message || !ctx.message.text) return;
 
-  // 2. Agar Admin yozayotgan bo'lsa (Adminlar /reply ishlatadi)
-  if (ctx.from.id == Number(process.env.ADMIN_ID)) {
-    return ctx.reply("Admin, javob berish uchun /reply [UserID] [Xabar] formatidan foydalaning.");
+  // 1. If Admin replies to a message manually
+  if (ctx.from.id == Number(process.env.ADMIN_ID) && ctx.message.reply_to_message) {
+    // We handle this logic in bot.js now to keep it clean
+    return; 
   }
 
-  // 3. Foydalanuvchi ro'yxatdan o'tganini tekshirish
   const user = await userService.findByTelegramId(ctx.from.id);
   if (!user || !user.is_registered) {
     return ctx.reply("Iltimos, avval /start buyrug'i orqali ro'yxatdan o'ting.");
   }
 
   try {
-    // 4. Ma'lumotlar bazasiga saqlash
     const ticket = await ticketService.getOrCreateTicket(ctx.from.id);
     await ticketService.logMessage(ticket.id, ctx.from.id, ctx.message.text);
 
-    // 5. Adminga xabar yuborish
+    // 2. Notify Admin with a specific format that includes the ID at the bottom
     await telegramService.notifyAdmin(
       `📩 *Yangi murojaat*\n` +
       `Ism: ${user.first_name}\n` +
-      `Tel: ${user.phone_number}\n` +
-      `ID: \`${ctx.from.id}\`\n\n` +
-      `*Xabar:* ${ctx.message.text}`
+      `Tel: ${user.phone_number}\n\n` +
+      `*Xabar:* ${ctx.message.text}\n\n` +
+      `🆔 \`${ctx.from.id}\`` // Keep ID here for the bot to read back
     );
 
-    await ctx.reply("Sizning xabaringiz yuborildi. Tez orada admin javob beradi!");
+    await ctx.reply("Xabaringiz yuborildi. Admin tez orada javob beradi!");
   } catch (error) {
     console.error("UserMessage handler xatosi:", error);
-    await ctx.reply("Uzr, xabarni yuborishda xatolik yuz berdi.");
+    await ctx.reply("Xabarni yuborishda xatolik yuz berdi.");
   }
 };
