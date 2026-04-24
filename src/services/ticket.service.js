@@ -20,6 +20,6 @@ module.exports = {
       ticket_id: ticketId,
       sender_id: senderId,
       text: text
-    });
+    }).returning('*');
   }
 };
